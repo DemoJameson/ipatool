@@ -24,6 +24,11 @@ jobs:
         env:
           GOOS: windows
           GOARCH: ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ipatool-windows-${{ matrix.arch }}.exe
+          path: ipatool-windows-${{ matrix.arch }}.exe
+          if-no-files-found: error
   build_linux:
     name: Build for Linux
     runs-on: ${{ matrix.runner }}
@@ -44,6 +49,11 @@ jobs:
       - run: go build -o ipatool-linux-$GOARCH
         env:
           GOARCH: ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ipatool-linux-${{ matrix.arch }}
+          path: ipatool-linux-${{ matrix.arch }}
+          if-no-files-found: error
   build_macos:
     name: Build for macOS
     runs-on: macos-latest
@@ -64,6 +74,11 @@ jobs:
           CGO_ENABLED: 1
           CGO_CFLAGS: -mmacosx-version-min=10.15
           CGO_LDFLAGS: -mmacosx-version-min=10.15
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ipatool-darwin-${{ matrix.arch }}
+          path: ipatool-darwin-${{ matrix.arch }}
+          if-no-files-found: error
   build_ios:
     name: Build for iOS
     runs-on: macos-latest
@@ -75,3 +90,8 @@ jobs:
           cache: true
       - run: brew install ldid cmake
       - run: ./tools/build-ios.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ipatool-ios-arm64
+          path: ipatool-ios-arm64
+          if-no-files-found: error

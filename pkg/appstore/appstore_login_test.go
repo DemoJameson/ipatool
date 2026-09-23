@@ -129,6 +129,28 @@ var _ = Describe("AppStore (Login)", func() {
 		)
 	})
 
+	DescribeTable("signs a phone-number Apple ID in against its own storefront", func(email, expected string) {
+		request := as.loginRequest(email, testPassword, "", "guid", testAuthEndpoint, 1, signer)
+
+		if expected == "" {
+			Expect(request.Headers).NotTo(HaveKey("X-Apple-Store-Front"))
+
+			return
+		}
+
+		Expect(request.Headers).To(HaveKeyWithValue("X-Apple-Store-Front", expected))
+	},
+		Entry("China mainland number", "13800138000", "143465"),
+		Entry("China mainland number with dialling code", "+8613800138000", "143465"),
+		Entry("China mainland number with separators", "138-0013-8000", "143465"),
+		Entry("India number", "9876543210", "143467"),
+		Entry("India number with trunk prefix", "09876543210", "143467"),
+		Entry("China mainland number dialled with its country code", "8613800138000", "143465"),
+		Entry("India number dialled with its country code", "919876543210", "143467"),
+		Entry("email Apple ID", testEmail, ""),
+		Entry("email Apple ID with a numeric local part", "13800138000@example.com", ""),
+	)
+
 	When("fails to read Machine's MAC address", func() {
 		BeforeEach(func() {
 			mockMachine.EXPECT().

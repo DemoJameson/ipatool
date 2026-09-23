@@ -316,15 +316,63 @@ func (t *appstore) parseLoginResponse(res *http.Result[loginResult], attempt int
 	return retry, redirect, err
 }
 
+// https://support.apple.com/en-hk/105034
+// People living in China mainland or India
+// have the option to create an Apple Account using their phone number.
+var phoneAppleIDRegions = []struct {
+	country  string
+	dialing  string
+	national func(digits string) bool
+}{
+	{country: "CN", dialing: "86", national: func(d string) bool { return len(d) == 11 && d[0] == '1' }},
+	{country: "IN", dialing: "91", national: func(d string) bool { return len(d) == 10 && d[0] >= '6' && d[0] <= '9' }},
+}
+
+func authStoreFront(email string) string {
+	if strings.ContainsRune(email, '@') {
+		return ""
+	}
+
+	digits := strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+
+		return -1
+	}, email)
+
+	for _, region := range phoneAppleIDRegions {
+		national, ok := strings.CutPrefix(digits, "00"+region.dialing)
+		if !ok {
+			national, ok = strings.CutPrefix(digits, region.dialing)
+			if !ok {
+				national = strings.TrimPrefix(digits, "0")
+			}
+		}
+
+		if region.national(national) {
+			return storeFronts[region.country]
+		}
+	}
+
+	return ""
+}
+
 func (t *appstore) loginRequest(email, password, authCode, guid, endpoint string, attempt int, signer ActionSigner) http.Request {
+	headers := map[string]string{
+		"Content-Type": "application/x-www-form-urlencoded",
+	}
+
+	if storeFront := authStoreFront(email); storeFront != "" {
+		headers["X-Apple-Store-Front"] = storeFront
+	}
+
 	return http.Request{
 		Method:         http.MethodPOST,
 		URL:            endpoint,
 		ResponseFormat: http.ResponseFormatXML,
 		ActionSigner:   signer,
-		Headers: map[string]string{
-			"Content-Type": "application/x-www-form-urlencoded",
-		},
+		Headers:        headers,
 		Payload: &http.XMLPayload{
 			Content: map[string]interface{}{
 				"appleId":  email,

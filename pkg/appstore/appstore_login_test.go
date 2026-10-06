@@ -125,7 +125,8 @@ var _ = Describe("AppStore (Login)", func() {
 			},
 			Entry("retries and then stops for HTTP 204", 204, maxAuthenticationRequestAttempts),
 			Entry("retries and then stops for HTTP 503", 503, maxAuthenticationRequestAttempts),
-			Entry("does not retry HTTP 403", 403, 1),
+			Entry("retries and then stops for non-plist HTTP 403", 403, maxAuthenticationRequestAttempts),
+			Entry("does not retry HTTP 401", 401, 1),
 		)
 	})
 
@@ -163,6 +164,7 @@ var _ = Describe("AppStore (Login)", func() {
 		DescribeTable("normalizes 2FA codes without changing the password", func(code, suffix string) {
 			const password = " \tpäss word\n"
 			mockClient.EXPECT().Send(gomock.Any()).DoAndReturn(func(req http.Request) (http.Result[loginResult], error) {
+				Expect(req.URL).To(Equal(testAuthEndpoint + "/"))
 				Expect(req.Payload.(*http.XMLPayload).Content).To(HaveKeyWithValue("password", password+suffix))
 
 				return http.Result[loginResult]{}, errors.New("test complete")
@@ -188,7 +190,7 @@ var _ = Describe("AppStore (Login)", func() {
 				mockClient.EXPECT().
 					Send(gomock.Any()).
 					Do(func(req http.Request) {
-						Expect(req.URL).To(Equal(testAuthEndpoint))
+						Expect(req.URL).To(Equal(testAuthEndpoint + "/"))
 						Expect(req.ActionSigner).To(BeIdenticalTo(signer))
 					}).
 					Return(http.Result[loginResult]{}, clientErr)
@@ -327,7 +329,7 @@ var _ = Describe("AppStore (Login)", func() {
 				firstCall := mockClient.EXPECT().
 					Send(gomock.Any()).
 					Do(func(req http.Request) {
-						Expect(req.URL).To(Equal(testAuthEndpoint))
+						Expect(req.URL).To(Equal(testAuthEndpoint + "/"))
 						Expect(req.ActionSigner).To(BeIdenticalTo(signer))
 						Expect(req.Payload).To(BeAssignableToTypeOf(&http.XMLPayload{}))
 						x := req.Payload.(*http.XMLPayload)
@@ -453,9 +455,12 @@ var _ = Describe("AppStore (Login)", func() {
 type stubActionSigner struct {
 	closeCalls int
 	closeErr   error
+	signCalls  int
 }
 
-func (*stubActionSigner) Sign(data []byte) ([]byte, error) {
+func (s *stubActionSigner) Sign(data []byte) ([]byte, error) {
+	s.signCalls++
+
 	return append([]byte(nil), data...), nil
 }
 
